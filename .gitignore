@@ -10,6 +10,9 @@
 /.vscode
 .DS_Store
 
+# ignore data
+data
+
 ## PyTorch
 
 .coverage
