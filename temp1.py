@@ -47,26 +47,29 @@ def flatten_struct(df: DataFrame, prefix=""):
 
 from pyspark.sql.functions import col, lit
 from pyspark.sql.types import StructType
+from pyspark.sql.functions import expr, transform, lit
 
+# Normalize the array of structs by adding missing fields
 def normalize_array_of_structs(df, column_name, reference_schema):
     """
     Normalizes an array of structs by ensuring all structs contain the fields defined in the reference schema.
     Missing fields are filled with null values.
-    :param df: Input DataFrame
-    :param column_name: Name of the column containing the array of structs
-    :param reference_schema: StructType schema defining the complete set of fields
-    :return: DataFrame with normalized array of structs
     """
-    # Create a new struct column with all fields from the reference schema
-    new_struct_cols = [
-        col(f"{column_name}.{field.name}").alias(field.name) if field.name in df.select(f"{column_name}.*").columns
-        else lit(None).alias(field.name)  # Add missing fields with null values
+    # For each field in the reference schema, create or add the missing fields
+    new_struct = ", ".join([
+        f"{column_name}.{field.name} AS {field.name}" if field.name in df.select(f"{column_name}.*").columns
+        else f"null AS {field.name}"  # Add null for missing fields
         for field in reference_schema.fields
-    ]
-
-    # Replace the column with the normalized array of structs
-    df = df.withColumn(column_name, col(column_name).cast(f"array<struct<{','.join([f'{f.name}:{f.dataType.simpleString()}' for f in reference_schema.fields])}>>"))
+    ])
+    df = df.withColumn(
+        column_name,
+        transform(
+            col(column_name),
+            lambda x: expr(f"struct({new_struct})")
+        )
+    )
     return df
+
 
 
 def normalize_df1(df1, df2):
